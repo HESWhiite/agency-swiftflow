@@ -4,13 +4,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PrintableInvoice } from "@/components/PrintableInvoice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, FileText, User, Truck } from "lucide-react";
+import { Package, FileText, User, Truck, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 const Dashboard = () => {
@@ -35,7 +36,7 @@ const Dashboard = () => {
   const fetchData = async () => {
     const [shipRes, invRes, profRes] = await Promise.all([
       supabase.from("shipments").select("*").eq("sender_id", user!.id).order("created_at", { ascending: false }),
-      supabase.from("invoices").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
+      supabase.from("invoices").select("*, shipments(tracking_number, sender_name, sender_address, receiver_name, receiver_address, package_description, weight, shipping_cost)").eq("user_id", user!.id).order("created_at", { ascending: false }),
       supabase.from("profiles").select("*").eq("user_id", user!.id).maybeSingle(),
     ]);
     setShipments(shipRes.data || []);
@@ -150,19 +151,29 @@ const Dashboard = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Invoice #</TableHead>
+                         <TableHead>Invoice #</TableHead>
                         <TableHead>Amount</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Due Date</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {invoices.map((inv) => (
+                      {invoices.map((inv: any) => (
                         <TableRow key={inv.id}>
                           <TableCell className="font-mono text-sm font-medium">{inv.invoice_number}</TableCell>
                           <TableCell>${inv.total?.toFixed(2)}</TableCell>
                           <TableCell><StatusBadge status={inv.status} /></TableCell>
                           <TableCell className="text-muted-foreground text-sm">{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}</TableCell>
+                          <TableCell>
+                            <PrintableInvoice
+                              invoice={{
+                                ...inv,
+                                shipment: inv.shipments || null,
+                                customer: profile,
+                              }}
+                            />
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

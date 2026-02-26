@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PrintableInvoice } from "@/components/PrintableInvoice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,7 @@ const Admin = () => {
     const [shipRes, usersRes, invRes] = await Promise.all([
       supabase.from("shipments").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.from("invoices").select("*").order("created_at", { ascending: false }),
+      supabase.from("invoices").select("*, shipments(tracking_number, sender_name, sender_address, receiver_name, receiver_address, package_description, weight, shipping_cost)").order("created_at", { ascending: false }),
     ]);
     setShipments(shipRes.data || []);
     setUsers(usersRes.data || []);
@@ -84,6 +85,26 @@ const Admin = () => {
       toast.error("Failed to create shipment: " + error.message);
     } else {
       toast.success(`Shipment created! Tracking: ${trackingNum}`);
+
+      // Send email notifications to sender and receiver
+      supabase.functions.invoke("send-shipment-notification", {
+        body: {
+          tracking_number: trackingNum,
+          sender_name: shipmentForm.sender_name,
+          sender_email: shipmentForm.sender_email || null,
+          receiver_name: shipmentForm.receiver_name,
+          receiver_email: shipmentForm.receiver_email || null,
+          receiver_address: shipmentForm.receiver_address,
+          sender_address: shipmentForm.sender_address,
+          estimated_delivery: shipmentForm.estimated_delivery || null,
+          package_description: shipmentForm.package_description || null,
+          shipping_cost: shipmentForm.shipping_cost ? parseFloat(shipmentForm.shipping_cost) : null,
+        },
+      }).then(({ error: fnError }) => {
+        if (fnError) console.error("Email notification failed:", fnError);
+        else toast.success("Email notifications sent!");
+      });
+
       setCreateShipmentOpen(false);
       setShipmentForm({ sender_name: "", sender_email: "", sender_phone: "", sender_address: "", receiver_name: "", receiver_email: "", receiver_phone: "", receiver_address: "", package_description: "", weight: "", dimensions: "", shipping_cost: "", estimated_delivery: "" });
       fetchAll();
@@ -355,26 +376,39 @@ const Admin = () => {
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow>
+                     <TableRow>
                       <TableHead>Invoice #</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Tax</TableHead>
                       <TableHead>Total</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Due Date</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {invoices.map((inv) => (
-                      <TableRow key={inv.id}>
-                        <TableCell className="font-mono text-sm font-medium">{inv.invoice_number}</TableCell>
-                        <TableCell>${inv.amount?.toFixed(2)}</TableCell>
-                        <TableCell>${inv.tax?.toFixed(2) || "0.00"}</TableCell>
-                        <TableCell className="font-medium">${inv.total?.toFixed(2)}</TableCell>
-                        <TableCell><StatusBadge status={inv.status} /></TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}</TableCell>
-                      </TableRow>
-                    ))}
+                    {invoices.map((inv: any) => {
+                      const customer = users.find((u: any) => u.user_id === inv.user_id);
+                      return (
+                        <TableRow key={inv.id}>
+                          <TableCell className="font-mono text-sm font-medium">{inv.invoice_number}</TableCell>
+                          <TableCell>${inv.amount?.toFixed(2)}</TableCell>
+                          <TableCell>${inv.tax?.toFixed(2) || "0.00"}</TableCell>
+                          <TableCell className="font-medium">${inv.total?.toFixed(2)}</TableCell>
+                          <TableCell><StatusBadge status={inv.status} /></TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}</TableCell>
+                          <TableCell>
+                            <PrintableInvoice
+                              invoice={{
+                                ...inv,
+                                shipment: inv.shipments || null,
+                                customer: customer ? { full_name: customer.full_name, email: customer.email, phone: customer.phone, address: customer.address } : null,
+                              }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
