@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { TrackingSearch } from "@/components/TrackingSearch";
+import { RateCalculator } from "@/components/RateCalculator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Package, Truck, Shield, Clock, MapPin, BarChart3, ArrowRight } from "lucide-react";
@@ -108,6 +109,15 @@ const Index = () => {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* Rate Calculator */}
+      <section className="container py-20">
+        <div className="text-center mb-12">
+          <h2 className="font-heading text-3xl font-bold md:text-4xl">Shipping Rate Calculator</h2>
+          <p className="mt-3 text-muted-foreground text-lg">Get an instant estimate for your shipment</p>
+        </div>
+        <RateCalculator />
       </section>
 
       {/* CTA */}
